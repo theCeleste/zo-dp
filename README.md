@@ -69,3 +69,7 @@ upgrade should prefer safetensors and a Transformers version that passes
 SentencePiece may print `precompiled_charsmap is empty; use identity normalization`.
 That is an informational message for the tokenizer bundled with the checkpoint,
 not a training or tokenization failure.
+
+The Llama entry point defaults to `--optim adamw_torch` instead of the deprecated
+Transformers 4.28 AdamW implementation. It can still be overridden explicitly on
+the command line.
