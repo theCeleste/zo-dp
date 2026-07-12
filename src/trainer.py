@@ -230,10 +230,9 @@ class OurTrainer(Trainer):
         if self.args.linear_probing:
 
             def _get_token_prediction_layer(model):
-                if model.config.model_type == "opt":
-                    return model.lm_head
-                else:
-                    raise NotImplementedError(model.config.model_type)
+                if model.config.model_type != "llama":
+                    raise ValueError(f"Expected a Llama model, got {model.config.model_type!r}")
+                return model.get_output_embeddings()
 
             def _extract_features(model, *args, **kwargs):
                 """some magic for getting features pre last layer"""
@@ -270,10 +269,10 @@ class OurTrainer(Trainer):
             features = torch.cat(features, dim=0).cpu().numpy()
             targets = torch.cat(targets, dim=0).cpu().numpy()
             # Whether to use bias
-            if self.model.config.model_type in ["opt", "gpt2"]:
+            if self.model.config.model_type == "llama":
                 use_bias = False
             else:
-                raise NotImplementedError
+                raise ValueError(f"Expected a Llama model, got {self.model.config.model_type!r}")
             # Set early stopping
             tol = 0.01 if self.args.lp_early_stopping else 1e-4 # 1e-4 is scipy default
             max_iter = 1000 if self.args.lp_early_stopping else 5000
