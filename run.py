@@ -207,10 +207,12 @@ class Framework:
             use_fast=False,
             trust_remote_code=self.args.trust_remote_code,
         )
-        if tokenizer.pad_token is None:
-            if tokenizer.unk_token is None:
+        # Reading tokenizer.pad_token while it is unset emits a warning in the
+        # legacy Llama tokenizer, so inspect the backing special-token fields.
+        if getattr(tokenizer, "_pad_token", None) is None:
+            if getattr(tokenizer, "_unk_token", None) is None:
                 raise ValueError("Llama tokenizer has neither a pad token nor an unk token")
-            tokenizer.pad_token = tokenizer.unk_token
+            tokenizer.pad_token = tokenizer._unk_token
         model.config.pad_token_id = tokenizer.pad_token_id
         if getattr(model, "generation_config", None) is not None:
             model.generation_config.pad_token_id = tokenizer.pad_token_id

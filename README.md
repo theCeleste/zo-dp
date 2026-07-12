@@ -55,3 +55,17 @@ Important constraints:
   in terms of original examples by the configured per-device batch size.
 
 The task names and prompt templates remain the same as in `opt/`.
+
+## Loader messages
+
+With PyTorch 2.4, Transformers 4.28 may emit a `torch.load(...,
+weights_only=False)` FutureWarning while loading legacy `.bin` checkpoint shards.
+This call is inside Transformers 4.28 and cannot be changed through the model API.
+Use only the official gated Llama checkpoint or another checkpoint you trust. Do
+not globally suppress the warning for arbitrary model paths. A future Trainer/API
+upgrade should prefer safetensors and a Transformers version that passes
+`weights_only=True` where applicable.
+
+SentencePiece may print `precompiled_charsmap is empty; use identity normalization`.
+That is an informational message for the tokenizer bundled with the checkpoint,
+not a training or tokenization failure.
