@@ -20,6 +20,8 @@ if [ "$MODE" == "prefix" ]; then
     EXTRA_ARGS="--prefix_tuning --num_prefix 5 --no_reparam --prefix_init_by_real_act"
 elif [ "$MODE" == "lora" ]; then
     EXTRA_ARGS="--lora"
+elif [ "$MODE" == "head" ]; then
+    EXTRA_ARGS="--head_tuning"
 fi
 TAG=dpzero-$MODE-$STEPS-$BS-$LR-$EPS-$SEED-$DP_EPS-$DP_CLIP
 

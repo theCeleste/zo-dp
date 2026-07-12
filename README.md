@@ -1,9 +1,8 @@
 # DPZero for Llama 2 7B
 
 This directory adapts the OPT implementation to `meta-llama/Llama-2-7b-hf`.
-The first supported release covers zero-shot/ICL evaluation, regular fine-tuning,
-LoRA, MeZO, and DPZero. Prefix tuning, head tuning, and linear probing fail fast
-with an explicit error because their original implementations are OPT-specific.
+It covers zero-shot/ICL evaluation, regular fine-tuning, LoRA, head tuning,
+linear probing, direct KV prefix tuning, MeZO, and DPZero.
 
 ## Setup
 
@@ -44,6 +43,15 @@ Regular LoRA fine-tuning:
 MODEL=meta-llama/Llama-2-7b-hf TASK=SST2 MODE=lora \
   BS=4 LR=1e-4 bash examples/finetune.sh
 ```
+
+Head tuning uses the same scripts with `MODE=head`. Linear probing is available
+through the direct `run.py` interface with `--linear_probing`.
+
+Prefix tuning uses `MODE=prefix`. It provides trainable per-layer KV cache entries
+in Llama's native key/value-head layout. The current implementation supports the
+legacy tuple cache used by the pinned Transformers 4.28.1 environment and direct
+KV parameters (`--no_reparam`). Real-activation initialization currently falls
+back to random initialization with a warning.
 
 Important constraints:
 

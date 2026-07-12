@@ -159,12 +159,9 @@ class Framework:
             config = AutoConfig.from_pretrained(self.args.model_name)
             if config.model_type != "llama":
                 raise ValueError(f"This entry point only supports Llama models, got model_type={config.model_type!r}")
-            if self.args.prefix_tuning:
-                raise NotImplementedError("Prefix tuning is not enabled for Llama 2 yet; use --lora or full-parameter tuning")
-            if self.args.head_tuning:
-                raise NotImplementedError("Llama head tuning requires the dedicated no-grad wrapper and is not enabled yet")
-            if self.args.linear_probing:
-                raise NotImplementedError("Linear probing is not enabled in the first Llama 2 release")
+            enabled_peft_modes = sum((self.args.prefix_tuning, self.args.head_tuning, self.args.lora))
+            if enabled_peft_modes > 1:
+                raise ValueError("Choose only one parameter-efficient mode: prefix, head tuning, or LoRA")
             if self.args.untie_emb:
                 # Untie embeddings/LM head
                 logger.warn("Untie embeddings and LM head")
@@ -222,9 +219,27 @@ class Framework:
             model.generation_config.pad_token_id = tokenizer.pad_token_id
 
         # Prefix tuning/LoRA
+        if self.args.prefix_tuning:
+            from src.prefix import PrefixTuning
+            PrefixTuning(
+                model,
+                num_prefix=self.args.num_prefix,
+                reparam=not self.args.no_reparam,
+                init_by_real_act=self.args.prefix_init_by_real_act,
+            )
         if self.args.lora:
             from src.lora import LoRA
             LoRA(model, r=self.args.lora_r, alpha=self.args.lora_alpha, float16=self.args.load_float16)
+
+        if self.args.head_tuning:
+            output_embeddings = model.get_output_embeddings()
+            if output_embeddings is None:
+                raise ValueError("Llama model does not expose output embeddings for head tuning")
+            for parameter in model.parameters():
+                parameter.requires_grad = False
+            for parameter in output_embeddings.parameters():
+                parameter.requires_grad = True
+            logger.info("Head tuning enabled: only the Llama LM head is trainable")
 
         trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total = sum(p.numel() for p in model.parameters())
