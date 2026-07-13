@@ -55,7 +55,8 @@ def forward_wrap_with_option_len_dpzero(self, input_ids=None, labels=None, optio
       words for classification tasks and #choices for multiple choice tasks), and a classification loss
       will be calculated.
     """
-    outputs = self.original_forward(input_ids=input_ids, **kwargs)
+    return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+    outputs = self.original_forward(input_ids=input_ids, return_dict=return_dict, **kwargs)
     if labels is None:
         return outputs
     logits = outputs.logits
