@@ -158,3 +158,31 @@ python summarize_benchmarks.py \
 This produces per-run `runs.csv` and grouped `groups.csv`/`groups.json` summaries.
 The formal DP epsilon values retain the current Opacus-accounting convention
 documented above; this configuration does not change the sampling implementation.
+
+After utility pilots pass, run formal jobs sequentially by stage. Inspect first:
+
+```bash
+python run_formal_stage.py --stage mezo_baseline
+```
+
+Start only with an exact confirmation token:
+
+```bash
+python run_formal_stage.py \
+  --stage mezo_baseline \
+  --run \
+  --confirm mezo_baseline
+```
+
+The stage runner skips outputs that already contain valid config, benchmark,
+evaluation, and metric artifacts. An incomplete output is resumed; any process
+failure, hard timeout, or artifact validation failure stops the stage immediately
+without automatic retry. Progress is written under `result/formal/stages/`.
+
+After reviewing the MeZO baseline, run only DPZero seed 0:
+
+```bash
+python run_formal_stage.py --stage dpzero_seed0 --run --confirm dpzero_seed0
+```
+
+Seed 1 and seed 2 are separate stages and should start only after seed-0 review.
