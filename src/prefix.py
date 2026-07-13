@@ -80,6 +80,10 @@ def _prefix_forward(self, input_ids=None, attention_mask=None, past_key_values=N
             attention_mask = torch.ones(
                 (batch_size, sequence_length), dtype=torch.long, device=source.device
             )
+        if kwargs.get("position_ids") is None:
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            kwargs["position_ids"] = position_ids + self.prefix_encoder.num_prefix
         prefix_mask = torch.ones(
             (batch_size, self.prefix_encoder.num_prefix),
             dtype=attention_mask.dtype,

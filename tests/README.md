@@ -35,3 +35,13 @@ This loads only the tokenizer from the named checkpoint. Model-side checks use a
 tiny local Llama configuration. It verifies answer token boundaries, left
 truncation, BOS preservation, padding-invariant option loss, genuine token ID 0,
 and candidate-expanded classification loss cardinality.
+
+Validate generation and cache behavior without downloading model weights:
+
+```bash
+python tests/validate_generation.py
+```
+
+This checks ordinary generation, the initial Prefix KV-cache length, three-token
+Prefix cache continuation with a left-padded batch, and the project's batched
+`zo_forward_nondiff` generation/F1 objective.
