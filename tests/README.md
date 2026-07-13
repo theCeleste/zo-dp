@@ -23,3 +23,15 @@ python tests/validate_zo_math.py
 This checks parameter restoration after symmetric perturbations, compares the
 central finite difference against an autograd directional derivative, verifies
 DP clipping, and confirms that DPZero receives one finite loss per example.
+
+Validate the real Llama tokenizer boundary logic and causal-LM padding behavior:
+
+```bash
+python tests/validate_prompt_and_padding.py \
+  --model_name meta-llama/Llama-2-7b-hf
+```
+
+This loads only the tokenizer from the named checkpoint. Model-side checks use a
+tiny local Llama configuration. It verifies answer token boundaries, left
+truncation, BOS preservation, padding-invariant option loss, genuine token ID 0,
+and candidate-expanded classification loss cardinality.
