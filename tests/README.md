@@ -13,3 +13,13 @@ the exact family of trainable parameter names.
 
 Temporary checkpoints are written under `tests/_checkpoint_validation`. The test
 deletes only the selected mode's directory under that test root before rerunning.
+
+Validate the zeroth-order and DPZero mathematical paths with:
+
+```bash
+python tests/validate_zo_math.py
+```
+
+This checks parameter restoration after symmetric perturbations, compares the
+central finite difference against an autograd directional derivative, verifies
+DP clipping, and confirms that DPZero receives one finite loss per example.
