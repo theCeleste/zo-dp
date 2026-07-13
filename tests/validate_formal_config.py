@@ -12,6 +12,9 @@ def main():
     config_path = LLAMA_DIR / "configs" / "formal_experiments.yaml"
     config = load_config(config_path)
     expected_counts = {
+        "zero_shot_control": 1,
+        "mezo_utility_pilot": 3,
+        "dpzero_utility_pilot": 3,
         "performance_smoke": 3,
         "mezo_baseline": 9,
         "dpzero_budget_sweep": 36,
@@ -28,19 +31,23 @@ def main():
             all_ids.add(job["experiment_id"])
             all_outputs.add(str(job["output_dir"]))
             command = command_for(job)
-            required = (
+            required = [
                 "--experiment_suite",
                 "--experiment_id",
                 "--result_file",
                 "--train_set_seed",
-                "--load_best_model_at_end",
-            )
+            ]
+            if job["method"] != "zero_shot":
+                required.append("--load_best_model_at_end")
             if any(flag not in command for flag in required):
                 raise AssertionError(f"{job['experiment_id']}: incomplete command {command}")
             if job["method"] == "dpzero" and "--dpzero" not in command:
                 raise AssertionError(f"{job['experiment_id']}: missing DPZero flag")
             if job["method"] == "mezo" and "--dpzero" in command:
                 raise AssertionError(f"{job['experiment_id']}: non-private baseline contains DPZero flag")
+            if job["method"] == "zero_shot":
+                if command[command.index("--trainer") + 1] != "none" or "--max_steps" in command:
+                    raise AssertionError(f"{job['experiment_id']}: invalid zero-shot command {command}")
     print(f"PASS formal config: {len(all_ids)} unique jobs across {len(expected_counts)} suites")
 
 

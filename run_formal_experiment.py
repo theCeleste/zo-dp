@@ -64,6 +64,19 @@ def command_for(job):
         "--tag", job["experiment_id"],
         "--seed", str(job["seed"]),
         "--train_set_seed", str(job["seed"]),
+    ]
+    if common.get("load_bfloat16"):
+        command.append("--load_bfloat16")
+
+    if job["method"] == "zero_shot":
+        command.extend([
+            "--trainer", "none",
+            "--num_train", "0",
+            "--num_eval", str(common["num_eval"]),
+        ])
+        return command
+
+    command.extend([
         "--num_train", str(common["num_train"]),
         "--num_dev", str(common["num_dev"]),
         "--num_eval", str(common["num_eval"]),
@@ -81,9 +94,7 @@ def command_for(job):
         "--save_steps", str(common["eval_steps"]),
         "--save_total_limit", "1",
         "--load_best_model_at_end",
-    ]
-    if common.get("load_bfloat16"):
-        command.append("--load_bfloat16")
+    ])
     if common.get("train_as_classification"):
         command.append("--train_as_classification")
 

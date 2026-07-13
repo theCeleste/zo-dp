@@ -7,10 +7,15 @@ from pathlib import Path
 
 def load_records(root):
     records = []
+    seen_directories = set()
     for benchmark_file in root.rglob("benchmark.json"):
+        seen_directories.add(benchmark_file.parent.resolve())
         benchmark = json.loads(benchmark_file.read_text(encoding="utf-8"))
         metrics_file = benchmark_file.parent / "eval_metrics.json"
         evaluation = json.loads(metrics_file.read_text(encoding="utf-8")) if metrics_file.exists() else {}
+        evaluation_file = benchmark_file.parent / "evaluation_benchmark.json"
+        evaluation_runs = json.loads(evaluation_file.read_text(encoding="utf-8")) if evaluation_file.exists() else []
+        primary_evaluation = max(evaluation_runs, key=lambda row: row["num_examples"]) if evaluation_runs else {}
         gpu_peaks = [gpu["peak_reserved_bytes"] for gpu in benchmark["environment"]["gpus"]]
         records.append({
             "suite": benchmark["experiment_suite"],
@@ -20,12 +25,40 @@ def load_records(root):
             "seed": benchmark["seed"],
             "epsilon": (benchmark.get("privacy") or {}).get("epsilon"),
             "eval_metric": next(iter(evaluation.values()), None),
+            "evaluation_wall_seconds": primary_evaluation.get("wall_seconds"),
             "training_wall_seconds": benchmark["training_wall_seconds"],
             "train_steps_per_second": benchmark["trainer_metrics"].get("train_steps_per_second"),
             "train_samples_per_second": benchmark["trainer_metrics"].get("train_samples_per_second"),
             "peak_reserved_bytes_max_gpu": max(gpu_peaks) if gpu_peaks else None,
             "trainable_parameters": benchmark["parameters"]["trainable"],
             "benchmark_file": str(benchmark_file),
+        })
+    for config_file in root.rglob("run_config.json"):
+        if config_file.parent.resolve() in seen_directories:
+            continue
+        metrics_file = config_file.parent / "eval_metrics.json"
+        if not metrics_file.exists():
+            continue
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+        evaluation = json.loads(metrics_file.read_text(encoding="utf-8"))
+        evaluation_file = config_file.parent / "evaluation_benchmark.json"
+        evaluation_runs = json.loads(evaluation_file.read_text(encoding="utf-8")) if evaluation_file.exists() else []
+        primary_evaluation = max(evaluation_runs, key=lambda row: row["num_examples"]) if evaluation_runs else {}
+        records.append({
+            "suite": config["suite"],
+            "experiment_id": config["experiment_id"],
+            "method": config["method"],
+            "mode": config["mode"],
+            "seed": config["seed"],
+            "epsilon": config.get("dp_epsilon"),
+            "eval_metric": next(iter(evaluation.values()), None),
+            "evaluation_wall_seconds": primary_evaluation.get("wall_seconds"),
+            "training_wall_seconds": None,
+            "train_steps_per_second": None,
+            "train_samples_per_second": None,
+            "peak_reserved_bytes_max_gpu": None,
+            "trainable_parameters": None,
+            "benchmark_file": None,
         })
     return records
 
@@ -50,6 +83,7 @@ def summarize(records):
             "runs": len(rows),
             "mean_eval_metric": mean([row["eval_metric"] for row in rows]),
             "mean_training_wall_seconds": mean([row["training_wall_seconds"] for row in rows]),
+            "mean_evaluation_wall_seconds": mean([row["evaluation_wall_seconds"] for row in rows]),
             "mean_train_steps_per_second": mean([row["train_steps_per_second"] for row in rows]),
             "mean_peak_reserved_bytes_max_gpu": mean([row["peak_reserved_bytes_max_gpu"] for row in rows]),
         })

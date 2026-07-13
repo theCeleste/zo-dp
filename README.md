@@ -118,6 +118,9 @@ trainer states, and prints the adapter weight file sizes.
 
 The locked baseline matrix is defined in `configs/formal_experiments.yaml`:
 
+- `zero_shot_control`: 1 evaluation-only control;
+- `mezo_utility_pilot`: 3 seed-0, 1000-step utility pilots;
+- `dpzero_utility_pilot`: 3 matched epsilon-6 utility pilots;
 - `performance_smoke`: 3 short jobs, one for each PEFT mode;
 - `mezo_baseline`: 9 jobs, three modes by three seeds;
 - `dpzero_budget_sweep`: 36 jobs, three modes by four nominal epsilon levels by three seeds.

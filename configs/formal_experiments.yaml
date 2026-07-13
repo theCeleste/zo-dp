@@ -22,6 +22,7 @@ common:
   train_as_classification: true
 
 modes:
+  none: {}
   lora:
     lora_r: 8
     lora_alpha: 16
@@ -31,6 +32,37 @@ modes:
   head: {}
 
 suites:
+  zero_shot_control:
+    description: Untrained Llama 2 baseline on the same 1000-example SST-2 evaluation set.
+    method: zero_shot
+    modes: [none]
+    seeds: [0]
+    overrides:
+      num_train: 0
+      num_dev: null
+      num_eval: 1000
+
+  mezo_utility_pilot:
+    description: Seed-0 medium-length non-private utility pilot before the full baseline.
+    method: mezo
+    modes: [lora, prefix, head]
+    seeds: [0]
+    overrides:
+      max_steps: 1000
+      eval_steps: 200
+      logging_steps: 10
+
+  dpzero_utility_pilot:
+    description: Seed-0 epsilon-6 utility pilot matched to the MeZO pilot.
+    method: dpzero
+    modes: [lora, prefix, head]
+    seeds: [0]
+    dp_epsilons: [6.0]
+    overrides:
+      max_steps: 1000
+      eval_steps: 200
+      logging_steps: 10
+
   dpzero_budget_sweep:
     description: Fixed-hyperparameter nominal privacy-budget sweep.
     method: dpzero
