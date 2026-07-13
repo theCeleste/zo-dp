@@ -32,6 +32,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 import copy
+import json
 from .metrics import f1
 import numpy as np
 
@@ -926,6 +927,89 @@ class OurTrainer(Trainer):
             self._signature_columns += list(set(["label", "label_ids"] + self.label_names))
             self._signature_columns += ["gold"]
 
+    def _adapter_checkpoint_info(self):
+        """Return adapter mode and trainable names when the model is PEFT-like."""
+        trainable_names = [name for name, parameter in self.model.named_parameters() if parameter.requires_grad]
+        if not trainable_names:
+            return None, []
+        if all("lora_" in name for name in trainable_names):
+            return "lora", trainable_names
+        if all("prefix_encoder" in name for name in trainable_names):
+            return "prefix", trainable_names
+        if all("lm_head" in name for name in trainable_names):
+            return "head", trainable_names
+        return None, trainable_names
+
+    def _save_adapter_checkpoint(self, output_dir, mode, trainable_names):
+        os.makedirs(output_dir, exist_ok=True)
+        full_state = self.model.state_dict()
+        adapter_state = {
+            name: full_state[name].detach().cpu()
+            for name in trainable_names
+            if name in full_state
+        }
+        missing = sorted(set(trainable_names) - set(adapter_state))
+        if missing:
+            raise ValueError(f"Trainable parameters missing from state_dict: {missing}")
+
+        torch.save(adapter_state, os.path.join(output_dir, WEIGHTS_NAME))
+        manifest = {
+            "format": "dpzero-llama-adapter-v1",
+            "mode": mode,
+            "base_model": getattr(self.args, "model_name", None),
+            "parameter_names": sorted(adapter_state),
+        }
+        with open(os.path.join(output_dir, "adapter_manifest.json"), "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, indent=2)
+        self.model.config.save_pretrained(output_dir)
+        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(output_dir)
+        logger.info(
+            "Saved %s-only checkpoint with %d tensors to %s",
+            mode,
+            len(adapter_state),
+            output_dir,
+        )
+
+    def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
+        manifest_file = os.path.join(resume_from_checkpoint, "adapter_manifest.json")
+        if not os.path.isfile(manifest_file):
+            return super()._load_from_checkpoint(resume_from_checkpoint, model=model)
+
+        target_model = self.model if model is None else model
+        with open(manifest_file, "r", encoding="utf-8") as handle:
+            manifest = json.load(handle)
+        if manifest.get("format") != "dpzero-llama-adapter-v1":
+            raise ValueError(f"Unsupported adapter checkpoint format: {manifest.get('format')!r}")
+
+        weights_file = os.path.join(resume_from_checkpoint, WEIGHTS_NAME)
+        try:
+            state_dict = torch.load(weights_file, map_location="cpu", weights_only=True)
+        except TypeError:
+            state_dict = torch.load(weights_file, map_location="cpu")
+        expected_names = set(manifest.get("parameter_names", []))
+        if set(state_dict) != expected_names:
+            raise ValueError(
+                "Adapter checkpoint tensor keys do not match its manifest: "
+                f"missing={sorted(expected_names - set(state_dict))}, "
+                f"unexpected={sorted(set(state_dict) - expected_names)}"
+            )
+        model_names = set(target_model.state_dict())
+        absent_from_model = sorted(expected_names - model_names)
+        if absent_from_model:
+            raise ValueError(f"Adapter tensors are absent from the reconstructed model: {absent_from_model}")
+        load_result = target_model.load_state_dict(state_dict, strict=False)
+        unexpected = sorted(load_result.unexpected_keys)
+        if unexpected:
+            raise ValueError(f"Unexpected adapter tensors while loading: {unexpected}")
+        logger.info(
+            "Loaded %s-only checkpoint with %d tensors from %s",
+            manifest.get("mode"),
+            len(state_dict),
+            resume_from_checkpoint,
+        )
+
     
     def save_model(self, output_dir: Optional[str] = None, _internal_call: bool = False):
         """
@@ -934,6 +1018,19 @@ class OurTrainer(Trainer):
 
         if output_dir is None:
             output_dir = self.args.output_dir
+
+        adapter_mode, trainable_names = self._adapter_checkpoint_info()
+        if (
+            getattr(self.args, "save_adapter_only", True)
+            and adapter_mode is not None
+            and self.fsdp is None
+            and not self.deepspeed
+            and self.args.should_save
+        ):
+            self._save_adapter_checkpoint(output_dir, adapter_mode, trainable_names)
+            if self.args.push_to_hub and not _internal_call:
+                self.push_to_hub(commit_message="Model save")
+            return
 
         if is_torch_tpu_available():
             self._save_tpu(output_dir)

@@ -82,3 +82,15 @@ not a training or tokenization failure.
 The Llama entry point defaults to `--optim adamw_torch` instead of the deprecated
 Transformers 4.28 AdamW implementation. It can still be overridden explicitly on
 the command line.
+
+## Adapter checkpoints
+
+LoRA, LM-head, and Prefix runs save adapter-only checkpoints by default. Each
+checkpoint contains `pytorch_model.bin`, `adapter_manifest.json`, model config,
+trainer state, optimizer, and scheduler state. On resume, reconstruct the same
+mode through the original command; the trainer validates the manifest and loads
+only the declared adapter tensors. Use `--save_adapter_only False` to request a
+full model checkpoint. Full-parameter fine-tuning always saves the full model.
+
+Adapter-only saving currently targets ordinary single-process/device-map runs.
+FSDP and DeepSpeed retain their native full/sharded checkpoint behavior.

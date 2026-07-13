@@ -122,6 +122,27 @@ def checkpoint_state(checkpoint):
     return json.loads(state_file.read_text(encoding="utf-8"))
 
 
+def assert_adapter_checkpoint(checkpoint, mode):
+    manifest_file = checkpoint / "adapter_manifest.json"
+    weights_file = checkpoint / "pytorch_model.bin"
+    if not manifest_file.exists() or not weights_file.exists():
+        raise AssertionError(f"{mode}: adapter manifest or weights are missing from {checkpoint}")
+    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    if manifest.get("format") != "dpzero-llama-adapter-v1" or manifest.get("mode") != mode:
+        raise AssertionError(f"{mode}: invalid adapter manifest: {manifest}")
+    try:
+        state_dict = torch.load(weights_file, map_location="cpu", weights_only=True)
+    except TypeError:
+        state_dict = torch.load(weights_file, map_location="cpu")
+    if set(state_dict) != set(manifest.get("parameter_names", [])):
+        raise AssertionError(f"{mode}: weight keys do not match the adapter manifest")
+    expected_fragment = {"lora": "lora_", "head": "lm_head", "prefix": "prefix_encoder"}[mode]
+    if not state_dict or not all(expected_fragment in name for name in state_dict):
+        raise AssertionError(f"{mode}: checkpoint contains non-adapter tensors: {list(state_dict)}")
+    if weights_file.stat().st_size >= 2 * 1024 * 1024:
+        raise AssertionError(f"{mode}: tiny adapter checkpoint is unexpectedly large")
+
+
 def validate_mode(mode, root):
     output_dir = root / mode
     if output_dir.exists():
@@ -132,11 +153,13 @@ def validate_mode(mode, root):
     checkpoint_1 = output_dir / "checkpoint-1"
     if checkpoint_state(checkpoint_1)["global_step"] != 1:
         raise AssertionError(f"{mode}: checkpoint-1 has an invalid global step")
+    assert_adapter_checkpoint(checkpoint_1, mode)
 
     resumed_model = train(mode, output_dir, max_steps=2, resume_from_checkpoint=str(checkpoint_1))
     checkpoint_2 = output_dir / "checkpoint-2"
     if checkpoint_state(checkpoint_2)["global_step"] != 2:
         raise AssertionError(f"{mode}: checkpoint-2 has an invalid global step")
+    assert_adapter_checkpoint(checkpoint_2, mode)
 
     trainable_names = [name for name, parameter in resumed_model.named_parameters() if parameter.requires_grad]
     expected_fragment = {"lora": "lora_", "head": "lm_head", "prefix": "prefix_encoder"}[mode]

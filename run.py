@@ -88,6 +88,7 @@ class OurArguments(TrainingArguments):
 
     # Saving
     save_model: bool = False # whether to save the model
+    save_adapter_only: bool = True # save only LoRA/head/prefix tensors when possible
     no_eval: bool = False # whether to skip evaluation
     tag: str = "" # saving tag
 
