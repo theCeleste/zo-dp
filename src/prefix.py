@@ -50,6 +50,24 @@ class LlamaPrefixEncoder(nn.Module):
     def forward(self, batch_size):
         return tuple(layer(batch_size) for layer in self.layers)
 
+    def initialize_from_cache(self, past_key_values):
+        if len(past_key_values) != len(self.layers):
+            raise ValueError(
+                f"Expected {len(self.layers)} cache layers, received {len(past_key_values)}"
+            )
+        with torch.no_grad():
+            for layer, (key, value) in zip(self.layers, past_key_values):
+                cached_key = key[0].to(device=layer.key.device, dtype=layer.key.dtype)
+                cached_value = value[0].to(device=layer.value.device, dtype=layer.value.dtype)
+                if cached_key.shape != layer.key.shape or cached_value.shape != layer.value.shape:
+                    raise ValueError(
+                        "Llama cache shape does not match prefix parameters: "
+                        f"key={tuple(cached_key.shape)} expected={tuple(layer.key.shape)}, "
+                        f"value={tuple(cached_value.shape)} expected={tuple(layer.value.shape)}"
+                    )
+                layer.key.copy_(cached_key)
+                layer.value.copy_(cached_value)
+
 
 def _prefix_forward(self, input_ids=None, attention_mask=None, past_key_values=None, inputs_embeds=None, **kwargs):
     if past_key_values is None:
@@ -111,12 +129,34 @@ class PrefixTuning:
             raise ValueError("num_prefix must be positive")
         if reparam:
             raise NotImplementedError("Llama prefix reparameterization is not implemented; use --no_reparam")
+        initial_cache = None
         if init_by_real_act:
-            logger.warning("Llama prefix uses random KV initialization; real-activation initialization is ignored")
+            embedding = model.get_input_embeddings()
+            input_device = embedding.weight.device
+            low_token_id = 3 if model.config.vocab_size > 3 else 0
+            input_ids = torch.randint(
+                low=low_token_id,
+                high=model.config.vocab_size,
+                size=(1, num_prefix),
+                dtype=torch.long,
+                device=input_device,
+            )
+            with torch.inference_mode():
+                initial_cache = model(
+                    input_ids=input_ids,
+                    attention_mask=torch.ones_like(input_ids),
+                    use_cache=True,
+                    return_dict=True,
+                ).past_key_values
+            if initial_cache is None:
+                raise ValueError("Llama did not return past_key_values for prefix initialization")
 
         for parameter in model.parameters():
             parameter.requires_grad = False
         model.prefix_encoder = LlamaPrefixEncoder(model, num_prefix)
+        if initial_cache is not None:
+            model.prefix_encoder.initialize_from_cache(initial_cache)
+            logger.info("Initialized Llama prefix from real token KV activations")
         model.prefix_original_forward = model.forward
         model.forward = MethodType(_prefix_forward, model)
         model.prefix_original_prepare_inputs_for_generation = model.prepare_inputs_for_generation

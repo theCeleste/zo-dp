@@ -50,8 +50,9 @@ through the direct `run.py` interface with `--linear_probing`.
 Prefix tuning uses `MODE=prefix`. It provides trainable per-layer KV cache entries
 in Llama's native key/value-head layout. The current implementation supports the
 legacy tuple cache used by the pinned Transformers 4.28.1 environment and direct
-KV parameters (`--no_reparam`). Real-activation initialization currently falls
-back to random initialization with a warning.
+KV parameters (`--no_reparam`). With `--prefix_init_by_real_act`, it runs a short
+no-gradient pass over randomly sampled real token IDs and initializes every layer
+from the resulting RoPE-transformed native Llama KV cache.
 
 Important constraints:
 
