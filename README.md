@@ -113,3 +113,45 @@ MODE=prefix bash examples/validate_7b_adapter_checkpoint.sh
 The script uses a new timestamped output directory, saves after one MeZO step,
 reconstructs the base model and Prefix module, resumes to step two, verifies both
 trainer states, and prints the adapter weight file sizes.
+
+## Formal experiments and performance benchmarks
+
+The locked baseline matrix is defined in `configs/formal_experiments.yaml`:
+
+- `performance_smoke`: 3 short jobs, one for each PEFT mode;
+- `mezo_baseline`: 9 jobs, three modes by three seeds;
+- `dpzero_budget_sweep`: 36 jobs, three modes by four nominal epsilon levels by three seeds.
+
+List a suite without executing anything:
+
+```bash
+python run_formal_experiment.py --suite performance_smoke
+```
+
+Execute exactly one selected job:
+
+```bash
+python run_formal_experiment.py --suite performance_smoke --index 0 --run
+```
+
+Bulk execution is intentionally disabled. Existing output directories are refused
+unless `--resume` is supplied, and a resume command must match the saved
+`run_config.json`. Each run records the exact command and configuration SHA-256.
+
+Every training run writes `benchmark.json` with model load time, training wall
+time, Trainer throughput, parameter counts, software/hardware versions, per-GPU
+peak allocated/reserved memory, and DP settings. Peak memory is reset after model
+loading, so it represents the live model plus training peak, not transient loader
+allocations. Post-training evaluation is stored separately in `eval_metrics.json`.
+
+Aggregate completed runs with:
+
+```bash
+python summarize_benchmarks.py \
+  --root result/formal \
+  --output result/formal/summary
+```
+
+This produces per-run `runs.csv` and grouped `groups.csv`/`groups.json` summaries.
+The formal DP epsilon values retain the current Opacus-accounting convention
+documented above; this configuration does not change the sampling implementation.

@@ -74,3 +74,12 @@ python tests/validate_dp_privacy.py
 This verifies `drop_last`, saved sampling/noise fields, exact-configuration
 adapter restore, rejection of privacy-changing resume arguments, and recovery of
 the original sample count from candidate-expanded batches.
+
+Validate formal experiment matrix expansion without launching training:
+
+```bash
+python tests/validate_formal_config.py
+```
+
+This checks the expected 3/9/36 suite sizes, globally unique experiment/output
+identities, required reproducibility flags, and separation of MeZO and DPZero commands.

@@ -5,8 +5,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 import argparse
+import platform
 import time
 import src.tasks
+import transformers as hf_transformers
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM, Trainer, HfArgumentParser, Trainer, TrainingArguments, DataCollatorWithPadding, DataCollatorForTokenClassification
 from typing import Union, Optional
 import torch
@@ -41,6 +43,8 @@ class OurArguments(TrainingArguments):
     num_train_sets: int = None # how many sets of training samples/demos to sample; if None and train_set_seed is None, then we will sample one set for each evaluation sample
     train_set_seed: int = None # designated seed to sample training samples/demos
     result_file: str = None # file name for saving performance; if None, then use the task name, model name, and config
+    experiment_suite: str = "manual"
+    experiment_id: str = "manual"
 
     # Model loading
     model_name: str = "meta-llama/Llama-2-7b-hf" # Llama 2 base model name or local path
@@ -152,7 +156,90 @@ class Framework:
     def __init__(self, args, task):
         self.args = args
         self.task = task
+        load_start = time.perf_counter()
         self.model, self.tokenizer = self.load_model()
+        self.model_load_seconds = time.perf_counter() - load_start
+
+    def _write_benchmark(self, trainer, train_output, wall_seconds, resumed_from_checkpoint):
+        if not self.args.should_save:
+            return
+        mode = "prefix" if self.args.prefix_tuning else "lora" if self.args.lora else "head" if self.args.head_tuning else "full"
+        method = "dpzero" if self.args.dpzero else "mezo" if self.args.trainer == "zo" else self.args.trainer
+        gpu_stats = []
+        if torch.cuda.is_available():
+            for device_id in range(torch.cuda.device_count()):
+                properties = torch.cuda.get_device_properties(device_id)
+                gpu_stats.append({
+                    "device": device_id,
+                    "name": properties.name,
+                    "total_memory_bytes": properties.total_memory,
+                    "peak_allocated_bytes": torch.cuda.max_memory_allocated(device_id),
+                    "peak_reserved_bytes": torch.cuda.max_memory_reserved(device_id),
+                })
+        privacy = None
+        if self.args.dpzero:
+            privacy = {
+                "epsilon": self.args.dp_epsilon,
+                "delta": self.args.dp_delta,
+                "clip_threshold": self.args.dpzero_clip_threshold,
+                "zo_eps": self.args.zo_eps,
+                "sample_rate": getattr(trainer, "dpzero_sample_rate", None),
+                "noise_multiplier": getattr(trainer, "dpzero_noise_multiplier", None),
+                "gaussian_std": getattr(trainer, "dpzero_gaussian_std", None),
+                "accounting_convention": "opacus_poisson_accountant_with_fixed_without_replacement_batches",
+            }
+        trainable = sum(parameter.numel() for parameter in self.model.parameters() if parameter.requires_grad)
+        total = sum(parameter.numel() for parameter in self.model.parameters())
+        record = {
+            "format": "dpzero-llama-benchmark-v1",
+            "experiment_suite": self.args.experiment_suite,
+            "experiment_id": self.args.experiment_id,
+            "model_name": self.args.model_name,
+            "task": self.args.task_name,
+            "method": method,
+            "mode": mode,
+            "seed": self.args.seed,
+            "train_set_seed": self.args.train_set_seed,
+            "model_load_seconds": self.model_load_seconds,
+            "training_wall_seconds": wall_seconds,
+            "resumed_from_checkpoint": resumed_from_checkpoint,
+            "trainer_metrics": train_output.metrics,
+            "parameters": {
+                "total": total,
+                "trainable": trainable,
+                "trainable_fraction": trainable / total,
+            },
+            "hyperparameters": {
+                "num_train": self.args.num_train,
+                "num_dev": self.args.num_dev,
+                "num_eval": self.args.num_eval,
+                "max_length": self.args.max_length,
+                "max_steps": self.args.max_steps,
+                "batch_size_per_device": self.args.per_device_train_batch_size,
+                "gradient_accumulation_steps": self.args.gradient_accumulation_steps,
+                "learning_rate": self.args.learning_rate,
+                "weight_decay": self.args.weight_decay,
+                "zo_eps": self.args.zo_eps,
+                "lora_r": self.args.lora_r if self.args.lora else None,
+                "lora_alpha": self.args.lora_alpha if self.args.lora else None,
+                "num_prefix": self.args.num_prefix if self.args.prefix_tuning else None,
+            },
+            "privacy": privacy,
+            "environment": {
+                "python": platform.python_version(),
+                "platform": platform.platform(),
+                "torch": torch.__version__,
+                "transformers": hf_transformers.__version__,
+                "cuda_runtime": torch.version.cuda,
+                "cudnn": torch.backends.cudnn.version() if torch.backends.cudnn.is_available() else None,
+                "gpu_count": torch.cuda.device_count(),
+                "gpus": gpu_stats,
+            },
+        }
+        os.makedirs(self.args.output_dir, exist_ok=True)
+        with open(os.path.join(self.args.output_dir, "benchmark.json"), "w", encoding="utf-8") as handle:
+            json.dump(record, handle, indent=2)
+        logger.info("Wrote benchmark record to %s", os.path.join(self.args.output_dir, "benchmark.json"))
 
 
     def load_model(self):
@@ -372,6 +459,7 @@ class Framework:
         else:
             logger.info(f"There are {len(train_samples)} training samples and {len(eval_samples)} validation samples")
 
+        evaluation_start = time.perf_counter()
         # Prediction loop
         predictions = []  
         for eval_id, eval_sample in enumerate(tqdm(eval_samples)):
@@ -382,6 +470,24 @@ class Framework:
         # Calculate metrics 
         metric_name = getattr(self.task, "metric_name", "accuracy")
         metrics = {metric_name: calculate_metric(predictions, metric_name)}
+        evaluation_seconds = time.perf_counter() - evaluation_start
+        if self.args.should_save:
+            os.makedirs(self.args.output_dir, exist_ok=True)
+            path = os.path.join(self.args.output_dir, "evaluation_benchmark.json")
+            if os.path.isfile(path):
+                with open(path, "r", encoding="utf-8") as handle:
+                    runs = json.load(handle)
+            else:
+                runs = []
+            runs.append({
+                "num_demonstrations": len(train_samples),
+                "num_examples": len(eval_samples),
+                "wall_seconds": evaluation_seconds,
+                "examples_per_second": len(eval_samples) / evaluation_seconds if evaluation_seconds else None,
+                "metrics": metrics,
+            })
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(runs, handle, indent=2, cls=EnhancedJSONEncoder)
         return metrics
 
 
@@ -480,7 +586,17 @@ class Framework:
         if self.args.resume_from_checkpoint is not None:
             last_checkpoint = self.args.resume_from_checkpoint
 
-        trainer.train(resume_from_checkpoint=last_checkpoint) 
+        if torch.cuda.is_available():
+            for device_id in range(torch.cuda.device_count()):
+                torch.cuda.reset_peak_memory_stats(device_id)
+                torch.cuda.synchronize(device_id)
+        train_start = time.perf_counter()
+        train_output = trainer.train(resume_from_checkpoint=last_checkpoint)
+        if torch.cuda.is_available():
+            for device_id in range(torch.cuda.device_count()):
+                torch.cuda.synchronize(device_id)
+        training_wall_seconds = time.perf_counter() - train_start
+        self._write_benchmark(trainer, train_output, training_wall_seconds, last_checkpoint)
 
         # Explicitly save the model
         if self.args.save_model:
