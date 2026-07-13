@@ -45,3 +45,14 @@ python tests/validate_generation.py
 This checks ordinary generation, the initial Prefix KV-cache length, three-token
 Prefix cache continuation with a left-padded batch, and the project's batched
 `zo_forward_nondiff` generation/F1 objective.
+
+Run the complete parameter-efficient training matrix with:
+
+```bash
+python tests/validate_training_matrix.py
+```
+
+This runs one tiny-Llama step for all nine combinations of LoRA, LM-head tuning,
+and Prefix tuning with regular backpropagation, MeZO, and DPZero. Every combination
+must produce a finite loss, reach global step one, and modify at least one of its
+declared trainable tensors.
