@@ -94,3 +94,13 @@ full model checkpoint. Full-parameter fine-tuning always saves the full model.
 
 Adapter-only saving currently targets ordinary single-process/device-map runs.
 FSDP and DeepSpeed retain their native full/sharded checkpoint behavior.
+
+After the tiny checkpoint tests pass, run one real Llama 2 checkpoint smoke test:
+
+```bash
+MODE=prefix bash examples/validate_7b_adapter_checkpoint.sh
+```
+
+The script uses a new timestamped output directory, saves after one MeZO step,
+reconstructs the base model and Prefix module, resumes to step two, verifies both
+trainer states, and prints the adapter weight file sizes.

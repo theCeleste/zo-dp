@@ -14,6 +14,12 @@ the exact family of trainable parameter names.
 Temporary checkpoints are written under `tests/_checkpoint_validation`. The test
 deletes only the selected mode's directory under that test root before rerunning.
 
+Once this tiny test passes, perform one real-model adapter checkpoint smoke test:
+
+```bash
+MODE=prefix bash examples/validate_7b_adapter_checkpoint.sh
+```
+
 Validate the zeroth-order and DPZero mathematical paths with:
 
 ```bash
