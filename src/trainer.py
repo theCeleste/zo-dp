@@ -1010,6 +1010,16 @@ class OurTrainer(Trainer):
             resume_from_checkpoint,
         )
 
+    def _load_best_model(self):
+        best_checkpoint = self.state.best_model_checkpoint
+        if best_checkpoint is not None and os.path.isfile(
+            os.path.join(best_checkpoint, "adapter_manifest.json")
+        ):
+            logger.info("Loading best adapter-only model from %s", best_checkpoint)
+            self._load_from_checkpoint(best_checkpoint, model=self.model)
+            return
+        return super()._load_best_model()
+
     
     def save_model(self, output_dir: Optional[str] = None, _internal_call: bool = False):
         """

@@ -143,6 +143,25 @@ def assert_adapter_checkpoint(checkpoint, mode):
         raise AssertionError(f"{mode}: tiny adapter checkpoint is unexpectedly large")
 
 
+def assert_best_model_adapter_load(checkpoint, mode, output_dir):
+    model = build_model(mode)
+    trainer = OurTrainer(
+        model=model,
+        args=build_args(output_dir, max_steps=1),
+        train_dataset=TinyCausalDataset(),
+        data_collator=collate,
+    )
+    trainer.state.best_model_checkpoint = str(checkpoint)
+    trainer._load_best_model()
+    try:
+        expected = torch.load(checkpoint / "pytorch_model.bin", map_location="cpu", weights_only=True)
+    except TypeError:
+        expected = torch.load(checkpoint / "pytorch_model.bin", map_location="cpu")
+    actual = model.state_dict()
+    for name, tensor in expected.items():
+        torch.testing.assert_close(actual[name].cpu(), tensor)
+
+
 def validate_mode(mode, root):
     output_dir = root / mode
     if output_dir.exists():
@@ -154,6 +173,7 @@ def validate_mode(mode, root):
     if checkpoint_state(checkpoint_1)["global_step"] != 1:
         raise AssertionError(f"{mode}: checkpoint-1 has an invalid global step")
     assert_adapter_checkpoint(checkpoint_1, mode)
+    assert_best_model_adapter_load(checkpoint_1, mode, output_dir)
 
     resumed_model = train(mode, output_dir, max_steps=2, resume_from_checkpoint=str(checkpoint_1))
     checkpoint_2 = output_dir / "checkpoint-2"
