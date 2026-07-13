@@ -64,3 +64,13 @@ This runs one tiny-Llama step for all nine combinations of LoRA, LM-head tuning,
 and Prefix tuning with regular backpropagation, MeZO, and DPZero. Every combination
 must produce a finite loss, reach global step one, and modify at least one of its
 declared trainable tensors.
+
+Validate strict fixed-batch privacy and checkpoint metadata with:
+
+```bash
+python tests/validate_dp_privacy.py
+```
+
+This verifies `drop_last`, saved sampling/noise fields, exact-configuration
+adapter restore, rejection of privacy-changing resume arguments, and recovery of
+the original sample count from candidate-expanded batches.

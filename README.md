@@ -57,11 +57,20 @@ from the resulting RoPE-transformed native Llama KV cache.
 Important constraints:
 
 - DPZero requires `--trainer zo`, `--only_train_option`, and gradient accumulation 1.
+- DPZero automatically enables `dataloader_drop_last` so every privacy step uses
+  the configured fixed batch size.
 - `--load_float16` and `--load_bfloat16` are mutually exclusive; BF16 is recommended.
 - 8-bit loading is accepted only with LoRA.
 - The privacy log reports sample rate, noise multiplier, Gaussian standard deviation,
   epsilon, and delta. Candidate-expanded classification batches are still accounted
   in terms of original examples by the configured per-device batch size.
+
+Every DPZero checkpoint includes `dpzero_privacy.json` with the sampling rate,
+noise multiplier, Gaussian standard deviation, batch and dataset sizes, clipping
+threshold, finite-difference epsilon, world size, and planned step count. Resume
+requires these privacy-relevant arguments to match exactly. To extend a completed
+privacy schedule, start a new run and explicitly compose the two privacy budgets;
+do not treat it as an ordinary same-budget resume.
 
 The task names and prompt templates remain the same as in `opt/`.
 

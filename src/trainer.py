@@ -224,6 +224,8 @@ class OurTrainer(Trainer):
         We overload the original training loop to add linear probing, MeZO, and DPZero.
         """
         self._train_batch_size = batch_size
+        if self.args.dpzero and not self.args.dataloader_drop_last:
+            raise ValueError("DPZero strict privacy mode requires dataloader_drop_last=True")
         # Data loader and number of training steps
         train_dataloader = self.get_train_dataloader()
 
@@ -417,6 +419,10 @@ class OurTrainer(Trainer):
                                               sample_rate=sample_rate,
                                               )
             self.dpzero_gaussian_std = 2 * multiplier * self.args.dpzero_clip_threshold / total_train_batch_size
+            self.dpzero_sample_rate = sample_rate
+            self.dpzero_noise_multiplier = multiplier
+            self.dpzero_effective_batch_size = total_train_batch_size
+            self.dpzero_num_examples = num_examples
             logger.info(
                 "DPZero privacy parameters: sample_rate=%.8f noise_multiplier=%.6f gaussian_std=%.6f epsilon=%s delta=%s",
                 sample_rate,
@@ -879,6 +885,12 @@ class OurTrainer(Trainer):
 
         if loss1.ndim == 0 or loss2.ndim == 0:
             raise ValueError("DPZero requires an unreduced per-example loss; enable --only_train_option")
+        expected_examples = self._dpzero_original_batch_size(inputs)
+        if loss1.shape[0] != expected_examples or loss2.shape[0] != expected_examples:
+            raise ValueError(
+                "DPZero loss cardinality must match original examples after candidate grouping: "
+                f"expected={expected_examples}, loss1={tuple(loss1.shape)}, loss2={tuple(loss2.shape)}"
+            )
 
         # Gradient clipping and adding noise
         loss_diff = ((loss1 - loss2) / (2 * self.args.zo_eps))
@@ -927,6 +939,93 @@ class OurTrainer(Trainer):
             self._signature_columns += list(set(["label", "label_ids"] + self.label_names))
             self._signature_columns += ["gold"]
 
+    @staticmethod
+    def _dpzero_original_batch_size(inputs):
+        num_options = inputs.get("num_options")
+        if num_options is None:
+            return int(inputs["input_ids"].shape[0])
+        values = num_options.tolist() if isinstance(num_options, torch.Tensor) else list(num_options)
+        index = 0
+        groups = 0
+        while index < len(values):
+            group_size = int(values[index])
+            if group_size <= 0 or index + group_size > len(values):
+                raise ValueError(f"Invalid num_options grouping at flattened index {index}: {values}")
+            if any(int(value) != group_size for value in values[index:index + group_size]):
+                raise ValueError(f"Inconsistent num_options values in candidate group: {values}")
+            index += group_size
+            groups += 1
+        return groups
+
+    def _privacy_manifest_path(self, output_dir):
+        return os.path.join(output_dir, "dpzero_privacy.json")
+
+    def _save_privacy_manifest(self, output_dir):
+        if not self.args.dpzero:
+            return
+        required_runtime_fields = (
+            "dpzero_sample_rate",
+            "dpzero_noise_multiplier",
+            "dpzero_effective_batch_size",
+            "dpzero_num_examples",
+        )
+        missing = [name for name in required_runtime_fields if not hasattr(self, name)]
+        if missing:
+            raise ValueError(f"DPZero privacy runtime fields are unavailable at checkpoint time: {missing}")
+        manifest = {
+            "format": "dpzero-privacy-v1",
+            "epsilon": self.args.dp_epsilon,
+            "delta": self.args.dp_delta,
+            "clip_threshold": self.args.dpzero_clip_threshold,
+            "zo_eps": self.args.zo_eps,
+            "sample_rate": self.dpzero_sample_rate,
+            "noise_multiplier": self.dpzero_noise_multiplier,
+            "gaussian_std": self.dpzero_gaussian_std,
+            "effective_batch_size": self.dpzero_effective_batch_size,
+            "num_examples": self.dpzero_num_examples,
+            "max_steps": self.state.max_steps,
+            "gradient_accumulation_steps": self.args.gradient_accumulation_steps,
+            "world_size": self.args.world_size,
+            "dataloader_drop_last": self.args.dataloader_drop_last,
+        }
+        os.makedirs(output_dir, exist_ok=True)
+        with open(self._privacy_manifest_path(output_dir), "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, indent=2)
+
+    def _validate_privacy_manifest(self, checkpoint):
+        privacy_file = self._privacy_manifest_path(checkpoint)
+        if not os.path.isfile(privacy_file):
+            if self.args.dpzero:
+                raise ValueError(f"DPZero checkpoint is missing privacy metadata: {privacy_file}")
+            return
+        if not self.args.dpzero:
+            raise ValueError("A DPZero checkpoint cannot be resumed without --dpzero")
+        with open(privacy_file, "r", encoding="utf-8") as handle:
+            saved = json.load(handle)
+        current = {
+            "epsilon": self.args.dp_epsilon,
+            "delta": self.args.dp_delta,
+            "clip_threshold": self.args.dpzero_clip_threshold,
+            "zo_eps": self.args.zo_eps,
+            "effective_batch_size": self.args.train_batch_size
+            * self.args.gradient_accumulation_steps
+            * self.args.world_size,
+            "max_steps": self.args.max_steps,
+            "gradient_accumulation_steps": self.args.gradient_accumulation_steps,
+            "world_size": self.args.world_size,
+            "dataloader_drop_last": self.args.dataloader_drop_last,
+        }
+        mismatches = {
+            key: {"checkpoint": saved.get(key), "current": value}
+            for key, value in current.items()
+            if saved.get(key) != value
+        }
+        if mismatches:
+            raise ValueError(
+                "Refusing to resume DPZero with privacy-changing arguments: "
+                + json.dumps(mismatches, sort_keys=True)
+            )
+
     def _adapter_checkpoint_info(self):
         """Return adapter mode and trainable names when the model is PEFT-like."""
         trainable_names = [name for name, parameter in self.model.named_parameters() if parameter.requires_grad]
@@ -973,6 +1072,7 @@ class OurTrainer(Trainer):
         )
 
     def _load_from_checkpoint(self, resume_from_checkpoint, model=None):
+        self._validate_privacy_manifest(resume_from_checkpoint)
         manifest_file = os.path.join(resume_from_checkpoint, "adapter_manifest.json")
         if not os.path.isfile(manifest_file):
             return super()._load_from_checkpoint(resume_from_checkpoint, model=model)
@@ -1028,6 +1128,8 @@ class OurTrainer(Trainer):
 
         if output_dir is None:
             output_dir = self.args.output_dir
+        if self.args.should_save:
+            self._save_privacy_manifest(output_dir)
 
         adapter_mode, trainable_names = self._adapter_checkpoint_info()
         if (

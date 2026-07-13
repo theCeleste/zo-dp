@@ -133,6 +133,9 @@ def parse_args():
         raise ValueError("--dpzero_clip_threshold must be positive")
     if args.dpzero and not (args.dp_epsilon > 0 and 0 < args.dp_delta < 1):
         raise ValueError("DPZero requires dp_epsilon > 0 and 0 < dp_delta < 1")
+    if args.dpzero and not args.dataloader_drop_last:
+        logger.info("DPZero strict privacy mode enables --dataloader_drop_last for a fixed batch size")
+        args.dataloader_drop_last = True
     print(args)
     return args
 

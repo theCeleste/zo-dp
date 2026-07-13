@@ -94,16 +94,21 @@ def forward_wrap_with_option_len_dpzero(self, input_ids=None, labels=None, optio
         if any([x != num_options[0] for x in num_options]):
             # Multi choice tasks with different number of options
             loss = 0
+            per_example_losses = []
             start_id = 0
             count = 0
             while start_id < len(num_options):
                 end_id = start_id + num_options[start_id]
                 _logits = selected_log_probs[start_id:end_id].unsqueeze(0) # (1, num_options)
                 _labels = labels[start_id:end_id][0].unsqueeze(0) # (1)
-                loss = loss_fct(_logits, _labels) + loss
+                group_loss = loss_fct(_logits, _labels)
+                if dpzero:
+                    per_example_losses.append(group_loss.reshape(-1))
+                else:
+                    loss = group_loss + loss
                 count += 1
                 start_id = end_id
-            loss = loss / count
+            loss = torch.cat(per_example_losses) if dpzero else loss / count
         else:
             num_options = num_options[0]
             selected_log_probs = selected_log_probs.view(-1, num_options) # (bsz, num_options)

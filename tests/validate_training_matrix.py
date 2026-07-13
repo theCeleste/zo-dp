@@ -36,6 +36,7 @@ def configure_args(output_dir, method):
     args.logging_steps = 1
     args.trainer = "regular" if method == "regular" else "zo"
     args.dpzero = method == "dpzero"
+    args.dataloader_drop_last = method == "dpzero"
     args.dpzero_clip_threshold = 1.0
     args.dp_epsilon = 6.0
     args.dp_delta = 1e-5
