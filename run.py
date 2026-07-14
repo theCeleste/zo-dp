@@ -679,9 +679,16 @@ def main():
                         for m in dev_metrics:
                             metrics["dev_" + m] = dev_metrics[m]
             else:
-                assert args.num_dev is None
-                # Zero-shot / in-context learning
-                metrics = framework.evaluate(train_samples, eval_samples)
+                if args.dev_only:
+                    dev_samples = train_samples[-args.num_dev:]
+                    metrics = {
+                        "dev_" + key: value
+                        for key, value in framework.evaluate([], dev_samples).items()
+                    }
+                else:
+                    assert args.num_dev is None
+                    # Zero-shot / in-context learning
+                    metrics = framework.evaluate(train_samples, eval_samples)
 
             if not args.no_eval:
                 logger.info("===== Train set %d =====" % train_set_seed)

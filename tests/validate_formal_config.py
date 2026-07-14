@@ -12,6 +12,9 @@ def main():
     config_path = LLAMA_DIR / "configs" / "formal_experiments.yaml"
     config = load_config(config_path)
     expected_counts = {
+        "dev_zero_shot_control": 1,
+        "mezo_zo_eps_sweep": 6,
+        "head_dp_batch_sweep": 2,
         "mezo_lr_sweep": 6,
         "head_dp_clip_sweep": 3,
         "zero_shot_control": 1,

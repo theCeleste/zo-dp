@@ -13,6 +13,9 @@ from run_formal_experiment import expand_suite, load_config  # noqa: E402
 
 
 STAGES = {
+    "dev_zero_shot_control": {"suite": "dev_zero_shot_control", "seed": None},
+    "mezo_zo_eps_sweep": {"suite": "mezo_zo_eps_sweep", "seed": None},
+    "head_dp_batch_sweep": {"suite": "head_dp_batch_sweep", "seed": None},
     "mezo_lr_sweep": {"suite": "mezo_lr_sweep", "seed": None},
     "head_dp_clip_sweep": {"suite": "head_dp_clip_sweep", "seed": None},
     "mezo_baseline": {"suite": "mezo_baseline", "seed": None},
@@ -44,10 +47,11 @@ def completion_state(job):
     output = output_path(job)
     required = [
         output / "run_config.json",
-        output / "benchmark.json",
         output / "evaluation_benchmark.json",
         output / "eval_metrics.json",
     ]
+    if job["method"] != "zero_shot":
+        required.append(output / "benchmark.json")
     if job["method"] == "dpzero":
         checkpoints = sorted(output.glob("checkpoint-*/dpzero_privacy.json"))
         if not checkpoints:
@@ -58,12 +62,15 @@ def completion_state(job):
     try:
         config = json.loads((output / "run_config.json").read_text(encoding="utf-8"))
         metrics = json.loads((output / "eval_metrics.json").read_text(encoding="utf-8"))
-        benchmark = json.loads((output / "benchmark.json").read_text(encoding="utf-8"))
+        benchmark = (
+            json.loads((output / "benchmark.json").read_text(encoding="utf-8"))
+            if job["method"] != "zero_shot" else None
+        )
     except (json.JSONDecodeError, OSError) as error:
         return False, [f"invalid result JSON: {error}"]
     if config.get("experiment_id") != job["experiment_id"]:
         return False, ["run_config experiment_id mismatch"]
-    if benchmark.get("experiment_id") != job["experiment_id"]:
+    if benchmark is not None and benchmark.get("experiment_id") != job["experiment_id"]:
         return False, ["benchmark experiment_id mismatch"]
     if not metrics:
         return False, ["empty eval_metrics.json"]

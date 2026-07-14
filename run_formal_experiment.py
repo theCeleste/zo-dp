@@ -96,9 +96,11 @@ def command_for(job):
     if job["method"] == "zero_shot":
         command.extend([
             "--trainer", "none",
-            "--num_train", "0",
+            "--num_train", str(common["num_train"]),
             "--num_eval", str(common["num_eval"]),
         ])
+        if job.get("dev_only"):
+            command.extend(["--num_dev", str(common["num_dev"]), "--dev_only"])
         return command
 
     command.extend([

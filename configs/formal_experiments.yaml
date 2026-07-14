@@ -32,6 +32,40 @@ modes:
   head: {}
 
 suites:
+  dev_zero_shot_control:
+    description: Dev-only untrained control on the exact held-out tuning subset.
+    method: zero_shot
+    modes: [none]
+    seeds: [0]
+    dev_only: true
+
+  mezo_zo_eps_sweep:
+    description: Dev-only finite-difference calibration at the selected LR 1e-5.
+    method: mezo
+    modes: [lora, prefix]
+    seeds: [0]
+    zo_eps_values: [1.0e-4, 1.0e-3, 1.0e-2]
+    dev_only: true
+    overrides:
+      learning_rate: 1.0e-5
+      max_steps: 2000
+      eval_steps: 200
+      logging_steps: 10
+
+  head_dp_batch_sweep:
+    description: Dev-only Head DPZero batch-size calibration after an uninformative clip sweep.
+    method: dpzero
+    modes: [head]
+    seeds: [0]
+    dp_epsilons: [6.0]
+    batch_sizes: [4, 8]
+    dev_only: true
+    overrides:
+      dp_clip: 1.0
+      max_steps: 5000
+      eval_steps: 500
+      logging_steps: 10
+
   mezo_lr_sweep:
     description: Dev-only mode-specific LR calibration for LoRA and Prefix.
     method: mezo

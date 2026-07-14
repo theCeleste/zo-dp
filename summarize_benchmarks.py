@@ -17,6 +17,8 @@ def load_records(root):
         evaluation_runs = json.loads(evaluation_file.read_text(encoding="utf-8")) if evaluation_file.exists() else []
         primary_evaluation = max(evaluation_runs, key=lambda row: row["num_examples"]) if evaluation_runs else {}
         gpu_peaks = [gpu["peak_reserved_bytes"] for gpu in benchmark["environment"]["gpus"]]
+        hyperparameters = benchmark.get("hyperparameters", {})
+        privacy = benchmark.get("privacy") or {}
         records.append({
             "suite": benchmark["experiment_suite"],
             "experiment_id": benchmark["experiment_id"],
@@ -24,6 +26,12 @@ def load_records(root):
             "mode": benchmark["mode"],
             "seed": benchmark["seed"],
             "epsilon": (benchmark.get("privacy") or {}).get("epsilon"),
+            "learning_rate": hyperparameters.get("learning_rate"),
+            "zo_eps": hyperparameters.get("zo_eps"),
+            "batch_size": hyperparameters.get("batch_size_per_device"),
+            "dp_clip": privacy.get("clip_threshold"),
+            "noise_multiplier": privacy.get("noise_multiplier"),
+            "gaussian_std": privacy.get("gaussian_std"),
             "eval_metric": next(iter(evaluation.values()), None),
             "evaluation_wall_seconds": primary_evaluation.get("wall_seconds"),
             "training_wall_seconds": benchmark["training_wall_seconds"],
@@ -51,6 +59,12 @@ def load_records(root):
             "mode": config["mode"],
             "seed": config["seed"],
             "epsilon": config.get("dp_epsilon"),
+            "learning_rate": None,
+            "zo_eps": None,
+            "batch_size": None,
+            "dp_clip": None,
+            "noise_multiplier": None,
+            "gaussian_std": None,
             "eval_metric": next(iter(evaluation.values()), None),
             "evaluation_wall_seconds": primary_evaluation.get("wall_seconds"),
             "training_wall_seconds": None,
@@ -71,15 +85,22 @@ def mean(values):
 def summarize(records):
     groups = defaultdict(list)
     for record in records:
-        groups[(record["suite"], record["method"], record["mode"], record["epsilon"])].append(record)
+        groups[(
+            record["suite"], record["method"], record["mode"], record["epsilon"],
+            record["learning_rate"], record["zo_eps"], record["batch_size"], record["dp_clip"],
+        )].append(record)
     result = []
     for key, rows in sorted(groups.items(), key=lambda item: str(item[0])):
-        suite, method, mode, epsilon = key
+        suite, method, mode, epsilon, learning_rate, zo_eps, batch_size, dp_clip = key
         result.append({
             "suite": suite,
             "method": method,
             "mode": mode,
             "epsilon": epsilon,
+            "learning_rate": learning_rate,
+            "zo_eps": zo_eps,
+            "batch_size": batch_size,
+            "dp_clip": dp_clip,
             "runs": len(rows),
             "mean_eval_metric": mean([row["eval_metric"] for row in rows]),
             "mean_training_wall_seconds": mean([row["training_wall_seconds"] for row in rows]),
