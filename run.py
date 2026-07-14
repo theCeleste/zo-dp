@@ -94,6 +94,7 @@ class OurArguments(TrainingArguments):
     save_model: bool = False # whether to save the model
     save_adapter_only: bool = True # save only LoRA/head/prefix tensors when possible
     no_eval: bool = False # whether to skip evaluation
+    dev_only: bool = False # tuning mode: evaluate dev but never touch the formal test split
     tag: str = "" # saving tag
 
     # Linear probing
@@ -140,6 +141,10 @@ def parse_args():
     if args.dpzero and not args.dataloader_drop_last:
         logger.info("DPZero strict privacy mode enables --dataloader_drop_last for a fixed batch size")
         args.dataloader_drop_last = True
+    if args.dev_only and args.num_dev is None:
+        raise ValueError("--dev_only requires --num_dev")
+    if args.dev_only and args.no_eval:
+        raise ValueError("--dev_only and --no_eval are mutually exclusive")
     print(args)
     return args
 
@@ -662,8 +667,14 @@ def main():
                 framework.train(train_samples, dev_samples if dev_samples is not None else eval_samples)
 
                 if not args.no_eval:
-                    metrics = framework.evaluate([], eval_samples) # No in-context learning if there is training
-                    if dev_samples is not None:
+                    if args.dev_only:
+                        metrics = {
+                            "dev_" + key: value
+                            for key, value in framework.evaluate([], dev_samples).items()
+                        }
+                    else:
+                        metrics = framework.evaluate([], eval_samples) # No in-context learning if there is training
+                    if dev_samples is not None and not args.dev_only:
                         dev_metrics = framework.evaluate([], dev_samples) 
                         for m in dev_metrics:
                             metrics["dev_" + m] = dev_metrics[m]

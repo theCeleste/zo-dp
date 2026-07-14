@@ -13,6 +13,8 @@ from run_formal_experiment import expand_suite, load_config  # noqa: E402
 
 
 STAGES = {
+    "mezo_lr_sweep": {"suite": "mezo_lr_sweep", "seed": None},
+    "head_dp_clip_sweep": {"suite": "head_dp_clip_sweep", "seed": None},
     "mezo_baseline": {"suite": "mezo_baseline", "seed": None},
     "dpzero_seed0": {"suite": "dpzero_budget_sweep", "seed": 0},
     "dpzero_seed1": {"suite": "dpzero_budget_sweep", "seed": 1},

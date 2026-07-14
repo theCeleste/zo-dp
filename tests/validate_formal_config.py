@@ -12,6 +12,8 @@ def main():
     config_path = LLAMA_DIR / "configs" / "formal_experiments.yaml"
     config = load_config(config_path)
     expected_counts = {
+        "mezo_lr_sweep": 6,
+        "head_dp_clip_sweep": 3,
         "zero_shot_control": 1,
         "mezo_utility_pilot": 3,
         "dpzero_utility_pilot": 3,
@@ -48,6 +50,8 @@ def main():
             if job["method"] == "zero_shot":
                 if command[command.index("--trainer") + 1] != "none" or "--max_steps" in command:
                     raise AssertionError(f"{job['experiment_id']}: invalid zero-shot command {command}")
+            if job.get("dev_only") and "--dev_only" not in command:
+                raise AssertionError(f"{job['experiment_id']}: tuning job can access formal test data")
     print(f"PASS formal config: {len(all_ids)} unique jobs across {len(expected_counts)} suites")
 
 

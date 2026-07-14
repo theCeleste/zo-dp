@@ -32,6 +32,31 @@ modes:
   head: {}
 
 suites:
+  mezo_lr_sweep:
+    description: Dev-only mode-specific LR calibration for LoRA and Prefix.
+    method: mezo
+    modes: [lora, prefix]
+    seeds: [0]
+    learning_rates: [1.0e-7, 1.0e-6, 1.0e-5]
+    dev_only: true
+    overrides:
+      max_steps: 2000
+      eval_steps: 200
+      logging_steps: 10
+
+  head_dp_clip_sweep:
+    description: Dev-only Head DPZero clipping calibration at epsilon 6.
+    method: dpzero
+    modes: [head]
+    seeds: [0]
+    dp_epsilons: [6.0]
+    dp_clips: [0.1, 1.0, 10.0]
+    dev_only: true
+    overrides:
+      max_steps: 5000
+      eval_steps: 500
+      logging_steps: 10
+
   zero_shot_control:
     description: Untrained Llama 2 baseline on the same 1000-example SST-2 evaluation set.
     method: zero_shot

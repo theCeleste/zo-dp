@@ -25,14 +25,38 @@ def expand_suite(config, suite_name):
     common = dict(config["common"])
     common.update(suite.get("overrides", {}))
     epsilons = suite.get("dp_epsilons", [None])
+    learning_rates = suite.get("learning_rates", [common["learning_rate"]])
+    zo_eps_values = suite.get("zo_eps_values", [common["zo_eps"]])
+    clip_values = suite.get("dp_clips", [common["dp_clip"]])
+    batch_sizes = suite.get("batch_sizes", [common["batch_size"]])
     jobs = []
-    for mode, seed, epsilon in itertools.product(suite["modes"], suite["seeds"], epsilons):
+    grid = itertools.product(
+        suite["modes"], suite["seeds"], epsilons,
+        learning_rates, zo_eps_values, clip_values, batch_sizes,
+    )
+    for mode, seed, epsilon, learning_rate, zo_eps, clip, batch_size in grid:
         method = suite["method"]
         if method != "dpzero" and epsilon is not None:
             raise ValueError(f"Suite {suite_name} sets epsilon for non-DP method {method}")
         epsilon_tag = f"-eps{epsilon:g}" if epsilon is not None else ""
-        experiment_id = f"{suite_name}-{method}-{mode}{epsilon_tag}-seed{seed}"
+        tuning_tags = ""
+        if "learning_rates" in suite:
+            tuning_tags += f"-lr{learning_rate:g}"
+        if "zo_eps_values" in suite:
+            tuning_tags += f"-mu{zo_eps:g}"
+        if "dp_clips" in suite:
+            tuning_tags += f"-clip{clip:g}"
+        if "batch_sizes" in suite:
+            tuning_tags += f"-bs{batch_size}"
+        experiment_id = f"{suite_name}-{method}-{mode}{epsilon_tag}{tuning_tags}-seed{seed}"
         output_dir = Path(config["output_root"]) / suite_name / experiment_id
+        job_common = dict(common)
+        job_common.update({
+            "learning_rate": learning_rate,
+            "zo_eps": zo_eps,
+            "dp_clip": clip,
+            "batch_size": batch_size,
+        })
         jobs.append({
             "suite": suite_name,
             "experiment_id": experiment_id,
@@ -43,8 +67,9 @@ def expand_suite(config, suite_name):
             "mode": mode,
             "seed": seed,
             "dp_epsilon": epsilon,
+            "dev_only": bool(suite.get("dev_only", False)),
             "output_dir": output_dir,
-            "common": common,
+            "common": job_common,
             "mode_config": config["modes"][mode],
         })
     return jobs
@@ -97,6 +122,8 @@ def command_for(job):
     ])
     if common.get("train_as_classification"):
         command.append("--train_as_classification")
+    if job.get("dev_only"):
+        command.append("--dev_only")
 
     if job["method"] == "dpzero":
         command.extend([

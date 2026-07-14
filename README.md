@@ -118,6 +118,8 @@ trainer states, and prints the adapter weight file sizes.
 
 The locked baseline matrix is defined in `configs/formal_experiments.yaml`:
 
+- `mezo_lr_sweep`: 6 dev-only LoRA/Prefix LR calibration jobs;
+- `head_dp_clip_sweep`: 3 dev-only Head clipping calibration jobs;
 - `zero_shot_control`: 1 evaluation-only control;
 - `mezo_utility_pilot`: 3 seed-0, 1000-step utility pilots;
 - `dpzero_utility_pilot`: 3 matched epsilon-6 utility pilots;
