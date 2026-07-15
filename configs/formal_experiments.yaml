@@ -135,6 +135,41 @@ suites:
     modes: [lora, prefix, head]
     seeds: [0, 1, 2]
 
+  mezo_calibrated_baseline:
+    description: Dev-selected non-private baseline; retained separately from the original formal suite for auditability.
+    method: mezo
+    modes: [lora, prefix, head]
+    seeds: [0, 1, 2]
+    mode_overrides:
+      lora:
+        learning_rate: 1.0e-5
+        zo_eps: 1.0e-3
+      prefix:
+        learning_rate: 1.0e-5
+        zo_eps: 1.0e-4
+      head:
+        learning_rate: 1.0e-7
+        zo_eps: 1.0e-3
+
+  dpzero_calibrated_budget_sweep:
+    description: Dev-selected mode-specific parameters for the nominal privacy-budget sweep; original suite retained for auditability.
+    method: dpzero
+    modes: [lora, prefix, head]
+    seeds: [0, 1, 2]
+    dp_epsilons: [1.0, 3.0, 6.0, 10.0]
+    mode_overrides:
+      lora:
+        learning_rate: 1.0e-5
+        zo_eps: 1.0e-3
+      prefix:
+        learning_rate: 1.0e-5
+        zo_eps: 1.0e-4
+      head:
+        learning_rate: 1.0e-7
+        zo_eps: 1.0e-3
+        batch_size: 4
+        dp_clip: 1.0
+
   performance_smoke:
     description: Short runtime and peak-memory benchmark before formal runs.
     method: dpzero

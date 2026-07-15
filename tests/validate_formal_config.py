@@ -23,6 +23,8 @@ def main():
         "performance_smoke": 3,
         "mezo_baseline": 9,
         "dpzero_budget_sweep": 36,
+        "mezo_calibrated_baseline": 9,
+        "dpzero_calibrated_budget_sweep": 36,
     }
     all_ids = set()
     all_outputs = set()
@@ -55,6 +57,28 @@ def main():
                     raise AssertionError(f"{job['experiment_id']}: invalid zero-shot command {command}")
             if job.get("dev_only") and "--dev_only" not in command:
                 raise AssertionError(f"{job['experiment_id']}: tuning job can access formal test data")
+            if suite == "mezo_calibrated_baseline":
+                expected = {
+                    "lora": (1.0e-5, 1.0e-3, 4, 10.0),
+                    "prefix": (1.0e-5, 1.0e-4, 4, 10.0),
+                    "head": (1.0e-7, 1.0e-3, 4, 10.0),
+                }[job["mode"]]
+                actual = tuple(job["common"][key] for key in (
+                    "learning_rate", "zo_eps", "batch_size", "dp_clip",
+                ))
+                if actual != expected:
+                    raise AssertionError(f"{job['experiment_id']}: expected {expected}, got {actual}")
+            if suite == "dpzero_calibrated_budget_sweep":
+                expected = {
+                    "lora": (1.0e-5, 1.0e-3, 4, 10.0),
+                    "prefix": (1.0e-5, 1.0e-4, 4, 10.0),
+                    "head": (1.0e-7, 1.0e-3, 4, 1.0),
+                }[job["mode"]]
+                actual = tuple(job["common"][key] for key in (
+                    "learning_rate", "zo_eps", "batch_size", "dp_clip",
+                ))
+                if actual != expected:
+                    raise AssertionError(f"{job['experiment_id']}: expected {expected}, got {actual}")
     print(f"PASS formal config: {len(all_ids)} unique jobs across {len(expected_counts)} suites")
 
 

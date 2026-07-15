@@ -19,9 +19,13 @@ STAGES = {
     "mezo_lr_sweep": {"suite": "mezo_lr_sweep", "seed": None},
     "head_dp_clip_sweep": {"suite": "head_dp_clip_sweep", "seed": None},
     "mezo_baseline": {"suite": "mezo_baseline", "seed": None},
+    "mezo_calibrated_baseline": {"suite": "mezo_calibrated_baseline", "seed": None},
     "dpzero_seed0": {"suite": "dpzero_budget_sweep", "seed": 0},
     "dpzero_seed1": {"suite": "dpzero_budget_sweep", "seed": 1},
     "dpzero_seed2": {"suite": "dpzero_budget_sweep", "seed": 2},
+    "dpzero_calibrated_seed0": {"suite": "dpzero_calibrated_budget_sweep", "seed": 0},
+    "dpzero_calibrated_seed1": {"suite": "dpzero_calibrated_budget_sweep", "seed": 1},
+    "dpzero_calibrated_seed2": {"suite": "dpzero_calibrated_budget_sweep", "seed": 2},
 }
 
 

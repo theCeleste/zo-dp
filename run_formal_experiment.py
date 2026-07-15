@@ -25,16 +25,27 @@ def expand_suite(config, suite_name):
     common = dict(config["common"])
     common.update(suite.get("overrides", {}))
     epsilons = suite.get("dp_epsilons", [None])
-    learning_rates = suite.get("learning_rates", [common["learning_rate"]])
-    zo_eps_values = suite.get("zo_eps_values", [common["zo_eps"]])
-    clip_values = suite.get("dp_clips", [common["dp_clip"]])
-    batch_sizes = suite.get("batch_sizes", [common["batch_size"]])
     jobs = []
-    grid = itertools.product(
-        suite["modes"], suite["seeds"], epsilons,
-        learning_rates, zo_eps_values, clip_values, batch_sizes,
-    )
-    for mode, seed, epsilon, learning_rate, zo_eps, clip, batch_size in grid:
+    mode_overrides = suite.get("mode_overrides", {})
+    unknown_modes = set(mode_overrides) - set(suite["modes"])
+    if unknown_modes:
+        raise ValueError(
+            f"Suite {suite_name} has overrides for modes it does not run: {sorted(unknown_modes)}"
+        )
+    grid = []
+    for mode in suite["modes"]:
+        mode_common = dict(common)
+        mode_common.update(mode_overrides.get(mode, {}))
+        learning_rates = suite.get("learning_rates", [mode_common["learning_rate"]])
+        zo_eps_values = suite.get("zo_eps_values", [mode_common["zo_eps"]])
+        clip_values = suite.get("dp_clips", [mode_common["dp_clip"]])
+        batch_sizes = suite.get("batch_sizes", [mode_common["batch_size"]])
+        for values in itertools.product(
+            suite["seeds"], epsilons,
+            learning_rates, zo_eps_values, clip_values, batch_sizes,
+        ):
+            grid.append((mode, mode_common, *values))
+    for mode, mode_common, seed, epsilon, learning_rate, zo_eps, clip, batch_size in grid:
         method = suite["method"]
         if method != "dpzero" and epsilon is not None:
             raise ValueError(f"Suite {suite_name} sets epsilon for non-DP method {method}")
@@ -50,7 +61,7 @@ def expand_suite(config, suite_name):
             tuning_tags += f"-bs{batch_size}"
         experiment_id = f"{suite_name}-{method}-{mode}{epsilon_tag}{tuning_tags}-seed{seed}"
         output_dir = Path(config["output_root"]) / suite_name / experiment_id
-        job_common = dict(common)
+        job_common = dict(mode_common)
         job_common.update({
             "learning_rate": learning_rate,
             "zo_eps": zo_eps,
