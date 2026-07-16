@@ -191,3 +191,41 @@ python run_formal_stage.py --stage dpzero_seed0 --run --confirm dpzero_seed0
 ```
 
 Seed 1 and seed 2 are separate stages and should start only after seed-0 review.
+
+## Staged LoRA + DPZero parameter matrix
+
+The tuning plan in `参数矩阵.txt` is implemented by
+`configs/lora_dpzero_matrix.yaml`.  All four stages use 1000 train examples,
+the held-out 500-example dev subset, nominal epsilon 6, and never inspect the
+formal evaluation set.
+
+List or run stage 1:
+
+```bash
+python run_lora_dpzero_matrix.py --stage stage1
+python run_lora_dpzero_matrix.py --stage stage1 --index 0 --run
+```
+
+To execute the whole stage sequentially with fail-fast artifact validation:
+
+```bash
+python run_lora_dpzero_stage.py --stage stage1 --run --confirm stage1
+```
+
+After a stage completes, rank its dev results and write the selected parameters
+to `configs/lora_dpzero_selection.yaml`:
+
+```bash
+python summarize_lora_dpzero_matrix.py --stage stage1 --update-selection
+python run_lora_dpzero_stage.py --stage stage2 --run --confirm stage2
+python summarize_lora_dpzero_matrix.py --stage stage2 --update-selection
+python run_lora_dpzero_stage.py --stage stage3 --run --confirm stage3
+python summarize_lora_dpzero_matrix.py --stage stage3 --update-selection
+python run_lora_dpzero_stage.py --stage final --run --confirm final
+python summarize_lora_dpzero_matrix.py --stage final
+```
+
+Selection updates are explicit.  Review each ranked CSV/JSON summary before
+starting the next stage.  The final summary records mean dev accuracy, seed
+standard deviation, the number of seeds above 63.4%, and whether the configured
+64.5%/two-seed success rule was met.

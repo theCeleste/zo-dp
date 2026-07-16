@@ -1,0 +1,35 @@
+version: 1
+
+# Fill this after stage1.  Values must be members of the stage1 grid.
+stage1_best:
+  learning_rate: null
+  dp_clip: null
+
+# Fill this after stage2.  Retain the selected stage1 values and add the best
+# LoRA rank/alpha and finite-difference scale.
+stage2_best:
+  learning_rate: null
+  dp_clip: null
+  lora_r: null
+  lora_alpha: null
+  zo_eps: null
+
+# Fill this after stage3 with exactly two complete configurations.  Each item
+# is expanded over seeds 0/1/2 by the final stage.
+finalists: []
+# Example:
+# finalists:
+#   - learning_rate: 1.0e-5
+#     dp_clip: 0.1
+#     lora_r: 4
+#     lora_alpha: 8
+#     zo_eps: 1.0e-3
+#     batch_size: 4
+#     max_steps: 10000
+#   - learning_rate: 3.0e-5
+#     dp_clip: 0.1
+#     lora_r: 2
+#     lora_alpha: 4
+#     zo_eps: 3.0e-4
+#     batch_size: 8
+#     max_steps: 5000

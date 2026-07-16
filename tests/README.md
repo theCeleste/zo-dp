@@ -83,3 +83,12 @@ python tests/validate_formal_config.py
 
 This checks the expected 3/9/36 suite sizes, globally unique experiment/output
 identities, required reproducibility flags, and separation of MeZO and DPZero commands.
+
+Validate the staged LoRA + DPZero tuning matrix with:
+
+```bash
+python tests/validate_lora_dpzero_matrix.py
+```
+
+This checks the planned 16/12/3/6 job counts, command flags, fixed nominal
+epsilon, unique identities, and the equal 40,000-example budgets in stage 3.
