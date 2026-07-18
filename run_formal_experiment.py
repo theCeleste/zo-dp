@@ -125,8 +125,6 @@ def command_for(job):
         "--learning_rate", str(common["learning_rate"]),
         "--zo_eps", str(common["zo_eps"]),
         "--lr_scheduler_type", str(common.get("lr_scheduler_type", "constant")),
-        "--warmup_ratio", str(common.get("warmup_ratio", 0.0)),
-        "--weight_decay", str(common.get("weight_decay", 0.0)),
         "--logging_steps", str(common["logging_steps"]),
         "--evaluation_strategy", "steps",
         "--eval_steps", str(common["eval_steps"]),
@@ -135,6 +133,10 @@ def command_for(job):
         "--save_total_limit", "1",
         "--load_best_model_at_end",
     ])
+    if "warmup_ratio" in common:
+        command.extend(["--warmup_ratio", str(common["warmup_ratio"])])
+    if "weight_decay" in common:
+        command.extend(["--weight_decay", str(common["weight_decay"])])
     if common.get("train_as_classification"):
         command.append("--train_as_classification")
     if job.get("dev_only"):
@@ -160,6 +162,12 @@ def command_for(job):
             "--lora_r", str(mode_config["lora_r"]),
             "--lora_alpha", str(mode_config["lora_alpha"]),
         ])
+        target_modules = mode_config.get("lora_target_modules", "q_proj,v_proj")
+        num_layers = mode_config.get("lora_num_layers", -1)
+        if target_modules != "q_proj,v_proj":
+            command.extend(["--lora_target_modules", str(target_modules)])
+        if num_layers != -1:
+            command.extend(["--lora_num_layers", str(num_layers)])
     elif job["mode"] == "prefix":
         command.extend(["--prefix_tuning", "--num_prefix", str(mode_config["num_prefix"]), "--no_reparam"])
         if mode_config.get("prefix_init_by_real_act"):

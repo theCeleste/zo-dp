@@ -229,3 +229,35 @@ Selection updates are explicit.  Review each ranked CSV/JSON summary before
 starting the next stage.  The final summary records mean dev accuracy, seed
 standard deviation, the number of seeds above 63.4%, and whether the configured
 64.5%/two-seed success rule was met.
+
+## Round-two LoRA + DPZero exploration
+
+`configs/lora_dpzero_exploration.yaml` continues from the first-round winner
+without overwriting its outputs. All stages retain the 1000-train/500-dev split
+and nominal epsilon 6:
+
+1. `boundary`: 12 LR/clipping/finite-difference boundary jobs;
+2. `structure`: 6 q-only versus q+v and last-8/last-16/all-layer jobs;
+3. `schedule`: 6 constant/linear/cosine and warmup combinations;
+4. `confirm`: the best two configurations over seeds 0/1/2.
+
+Run and select each stage in order:
+
+```bash
+python run_lora_dpzero_exploration.py --stage boundary
+python run_lora_dpzero_exploration_stage.py --stage boundary --run --confirm boundary
+python summarize_lora_dpzero_exploration.py --stage boundary --update-selection
+
+python run_lora_dpzero_exploration_stage.py --stage structure --run --confirm structure
+python summarize_lora_dpzero_exploration.py --stage structure --update-selection
+
+python run_lora_dpzero_exploration_stage.py --stage schedule --run --confirm schedule
+python summarize_lora_dpzero_exploration.py --stage schedule --update-selection
+
+python run_lora_dpzero_exploration_stage.py --stage confirm --run --confirm confirm
+python summarize_lora_dpzero_exploration.py --stage confirm
+```
+
+Review every ranked dev summary before updating the selection file. The confirm
+summary reports whether a candidate beats the first-round three-seed mean of
+80.07%. Formal test data remains excluded throughout exploration.

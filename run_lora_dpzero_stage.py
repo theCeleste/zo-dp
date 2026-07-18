@@ -1,4 +1,5 @@
 import argparse
+import importlib
 import json
 import subprocess
 import sys
@@ -58,17 +59,19 @@ def write_status(path, status):
 
 def main():
     parser = argparse.ArgumentParser(description="Run one parameter-matrix stage sequentially")
+    parser.add_argument("--runner-module", default="run_lora_dpzero_matrix")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--selection", type=Path, default=DEFAULT_SELECTION)
-    parser.add_argument("--stage", choices=("stage1", "stage2", "stage3", "final"), required=True)
+    parser.add_argument("--stage", required=True)
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--confirm", help="Must exactly match --stage when executing")
     parser.add_argument("--timeout_hours", type=float, default=72.0)
     args = parser.parse_args()
 
+    runner = importlib.import_module(args.runner_module)
     config = load_yaml(args.config)
     selection = load_yaml(args.selection)
-    jobs = expand_stage(config, selection, args.stage)
+    jobs = runner.expand_stage(config, selection, args.stage)
     print(f"Stage {args.stage}: {len(jobs)} sequential jobs")
     for index, job in enumerate(jobs):
         complete, missing = completion_state(job)
@@ -102,7 +105,7 @@ def main():
             continue
         command = [
             sys.executable,
-            "run_lora_dpzero_matrix.py",
+            str(LLAMA_DIR / f"{args.runner_module}.py"),
             "--config", str(args.config),
             "--selection", str(args.selection),
             "--stage", args.stage,

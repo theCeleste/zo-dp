@@ -100,7 +100,7 @@ class LoRALinear(nn.Linear):
 
 class LoRA:
 
-    def __init__(self, model, r, alpha, float16):
+    def __init__(self, model, r, alpha, float16, target_modules="q_proj,v_proj", num_layers=-1):
         """
         Input:
         r, alpha: LoRA hyperparameters
@@ -113,15 +113,37 @@ class LoRA:
 
         if model.config.model_type != "llama":
             raise ValueError(f"Llama LoRA adapter received model_type={model.config.model_type!r}")
+        target_modules = tuple(part.strip() for part in target_modules.split(",") if part.strip())
+        allowed_targets = {"q_proj", "k_proj", "v_proj", "o_proj"}
+        unknown_targets = set(target_modules) - allowed_targets
+        if not target_modules or unknown_targets:
+            raise ValueError(
+                f"LoRA target_modules must be a non-empty subset of {sorted(allowed_targets)}; "
+                f"unknown={sorted(unknown_targets)}"
+            )
+        layer_count = len(model.model.layers)
+        if num_layers == -1:
+            first_layer = 0
+        elif 1 <= num_layers <= layer_count:
+            first_layer = layer_count - num_layers
+        else:
+            raise ValueError(f"lora_num_layers must be -1 or between 1 and {layer_count}")
         attention_name = "self_attn"
 
         # Insert LoRA
         for key, _ in model.named_modules():
             if key[-len(attention_name):] == attention_name:
+                parts = key.split(".")
+                try:
+                    layer_index = int(parts[parts.index("layers") + 1])
+                except (ValueError, IndexError):
+                    continue
+                if layer_index < first_layer:
+                    continue
                 logger.info(f"Inject lora to: {key}")
                 _, _, attn = find_module(model, key)
 
-                for projection_name in ("q_proj", "v_proj"):
+                for projection_name in target_modules:
                     original = getattr(attn, projection_name)
                     replacement = LoRALinear(
                         original.in_features,

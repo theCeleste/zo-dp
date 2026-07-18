@@ -80,6 +80,8 @@ class OurArguments(TrainingArguments):
     lora: bool = False # whether to use LoRA
     lora_alpha: int = 16 # alpha in LoRA
     lora_r: int = 8 # r in LoRA
+    lora_target_modules: str = "q_proj,v_proj" # comma-separated Llama attention projections
+    lora_num_layers: int = -1 # inject into the last N layers; -1 means all layers
 
     # Generation
     sampling: bool = False # whether to use sampling
@@ -227,6 +229,8 @@ class Framework:
                 "zo_eps": self.args.zo_eps,
                 "lora_r": self.args.lora_r if self.args.lora else None,
                 "lora_alpha": self.args.lora_alpha if self.args.lora else None,
+                "lora_target_modules": self.args.lora_target_modules if self.args.lora else None,
+                "lora_num_layers": self.args.lora_num_layers if self.args.lora else None,
                 "num_prefix": self.args.num_prefix if self.args.prefix_tuning else None,
             },
             "privacy": privacy,
@@ -325,7 +329,14 @@ class Framework:
             )
         if self.args.lora:
             from src.lora import LoRA
-            LoRA(model, r=self.args.lora_r, alpha=self.args.lora_alpha, float16=self.args.load_float16)
+            LoRA(
+                model,
+                r=self.args.lora_r,
+                alpha=self.args.lora_alpha,
+                float16=self.args.load_float16,
+                target_modules=self.args.lora_target_modules,
+                num_layers=self.args.lora_num_layers,
+            )
 
         if self.args.head_tuning:
             output_embeddings = model.get_output_embeddings()

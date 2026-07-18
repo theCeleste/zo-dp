@@ -92,3 +92,12 @@ python tests/validate_lora_dpzero_matrix.py
 
 This checks the planned 16/12/3/6 job counts, command flags, fixed nominal
 epsilon, unique identities, and the equal 40,000-example budgets in stage 3.
+
+Validate the round-two exploration matrix with:
+
+```bash
+python tests/validate_lora_dpzero_exploration.py
+```
+
+This checks the 12/6/6/6 stage sizes, LoRA target projection/layer flags,
+unique identities, dev-only evaluation, epsilon 6, and accumulation 1.

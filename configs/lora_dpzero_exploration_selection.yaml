@@ -1,0 +1,17 @@
+version: 1
+
+boundary_best:
+  learning_rate: null
+  dp_clip: null
+  zo_eps: null
+
+structure_best:
+  learning_rate: null
+  dp_clip: null
+  zo_eps: null
+  lora_r: null
+  lora_alpha: null
+  lora_target_modules: null
+  lora_num_layers: null
+
+finalists: []
