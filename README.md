@@ -261,3 +261,21 @@ python summarize_lora_dpzero_exploration.py --stage confirm
 Review every ranked dev summary before updating the selection file. The confirm
 summary reports whether a candidate beats the first-round three-seed mean of
 80.07%. Formal test data remains excluded throughout exploration.
+
+### Frozen 85.8% reproduction
+
+The exact seed-2 run that produced 85.8% dev accuracy is frozen in
+`configs/lora_dpzero_858_reproduction.yaml`. Inspect or execute it with:
+
+```bash
+python run_lora_dpzero_858_reproduction.py
+python run_lora_dpzero_858_reproduction.py --run
+```
+
+For another independent repeat, use a fresh directory instead of resuming:
+
+```bash
+python run_lora_dpzero_858_reproduction.py \
+  --output-dir result/reproduction/lora_dpzero_858_seed2_repeat2 \
+  --run
+```

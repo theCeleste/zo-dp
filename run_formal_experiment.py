@@ -164,9 +164,10 @@ def command_for(job):
         ])
         target_modules = mode_config.get("lora_target_modules", "q_proj,v_proj")
         num_layers = mode_config.get("lora_num_layers", -1)
-        if target_modules != "q_proj,v_proj":
+        force_structure_args = bool(job.get("force_lora_structure_args", False))
+        if force_structure_args or target_modules != "q_proj,v_proj":
             command.extend(["--lora_target_modules", str(target_modules)])
-        if num_layers != -1:
+        if force_structure_args or num_layers != -1:
             command.extend(["--lora_num_layers", str(num_layers)])
     elif job["mode"] == "prefix":
         command.extend(["--prefix_tuning", "--num_prefix", str(mode_config["num_prefix"]), "--no_reparam"])

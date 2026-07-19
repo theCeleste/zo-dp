@@ -1,0 +1,3 @@
+learning_rate,dp_clip,zo_eps,lora_r,lora_alpha,lora_target_modules,lora_num_layers,batch_size,max_steps,lr_scheduler_type,warmup_ratio,runs,mean_dev_accuracy,seed_sd,beats_round1_mean
+0.0001,10.0,0.006,8,16,"q_proj,v_proj",16,4,10000,constant,0.0,3,0.828,0.028213471959331743,True
+0.0001,10.0,0.006,8,16,"q_proj,v_proj",16,4,10000,constant,0.03,3,0.828,0.028213471959331743,True

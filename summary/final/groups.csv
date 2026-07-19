@@ -1,3 +1,0 @@
-learning_rate,dp_clip,lora_r,lora_alpha,zo_eps,batch_size,max_steps,runs,mean_dev_accuracy,seed_sd,seeds_above_0_634,passes_success_rule
-0.0001,10.0,8,16,0.003,4,10000,3,0.8006666666666666,0.020132891827388623,3,True
-0.0001,10.0,8,16,0.003,8,5000,3,0.728,0.021166010488516743,3,True
