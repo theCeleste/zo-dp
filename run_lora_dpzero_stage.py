@@ -31,10 +31,11 @@ def completion_state(job):
         output / "evaluation_benchmark.json",
         output / "eval_metrics.json",
     ]
-    privacy_manifests = list(output.glob("checkpoint-*/dpzero_privacy.json"))
     missing = [str(path) for path in required if not path.exists()]
-    if not privacy_manifests:
-        missing.append(str(output / "checkpoint-*/dpzero_privacy.json"))
+    if job["method"] == "dpzero":
+        privacy_manifests = list(output.glob("checkpoint-*/dpzero_privacy.json"))
+        if not privacy_manifests:
+            missing.append(str(output / "checkpoint-*/dpzero_privacy.json"))
     if missing:
         return False, missing
     try:

@@ -101,3 +101,12 @@ python tests/validate_lora_dpzero_exploration.py
 
 This checks the 12/6/6/6 stage sizes, LoRA target projection/layer flags,
 unique identities, dev-only evaluation, epsilon 6, and accumulation 1.
+
+Validate the dedicated non-private LoRA + MeZO exploration matrix with:
+
+```bash
+python tests/validate_lora_mezo_exploration.py
+```
+
+This checks the 12/8/6/6 stage sizes, MeZO-only commands, LoRA structure flags,
+dev-only evaluation, unique identities, and the absence of DPZero arguments.

@@ -1,0 +1,17 @@
+version: 1
+
+# Bootstrap values keep later stages inspectable. The summarizer replaces them
+# with completed-stage winners when --update-selection is explicitly requested.
+optimizer_best:
+  learning_rate: 1.0e-5
+  zo_eps: 1.0e-3
+structure_best:
+  learning_rate: 1.0e-5
+  zo_eps: 1.0e-3
+  lora_r: 8
+  lora_alpha: 16
+  lora_target_modules: q_proj,v_proj
+  lora_num_layers: -1
+finalists:
+  - {learning_rate: 1.0e-5, zo_eps: 1.0e-3, lora_r: 8, lora_alpha: 16, lora_target_modules: "q_proj,v_proj", lora_num_layers: -1, batch_size: 4, max_steps: 6000, lr_scheduler_type: constant, warmup_ratio: 0.0}
+  - {learning_rate: 1.0e-5, zo_eps: 1.0e-3, lora_r: 8, lora_alpha: 16, lora_target_modules: "q_proj,v_proj", lora_num_layers: -1, batch_size: 4, max_steps: 10000, lr_scheduler_type: constant, warmup_ratio: 0.0}

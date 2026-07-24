@@ -262,6 +262,29 @@ Review every ranked dev summary before updating the selection file. The confirm
 summary reports whether a candidate beats the first-round three-seed mean of
 80.07%. Formal test data remains excluded throughout exploration.
 
+### LoRA + MeZO-only exploration
+
+For non-private zeroth-order LoRA accuracy, use the dedicated workflow below.
+Selection uses only the 500-example development subset and writes to
+`result/lora_mezo_exploration/`:
+
+```bash
+python run_lora_mezo_exploration.py --stage optimizer
+python run_lora_mezo_exploration_stage.py --stage optimizer --run --confirm optimizer
+python summarize_lora_mezo_exploration.py --stage optimizer --update-selection
+python run_lora_mezo_exploration_stage.py --stage structure --run --confirm structure
+python summarize_lora_mezo_exploration.py --stage structure --update-selection
+python run_lora_mezo_exploration_stage.py --stage budget --run --confirm budget
+python summarize_lora_mezo_exploration.py --stage budget --update-selection
+python run_lora_mezo_exploration_stage.py --stage confirm --run --confirm confirm
+python summarize_lora_mezo_exploration.py --stage confirm
+```
+
+Every job is explicitly `--trainer zo --lora`; no DPZero clipping, noise, or
+privacy-budget arguments are included. The stages search MeZO `learning_rate`
+and `zo_eps`, LoRA rank/projections/layers, then batch size, horizon, and
+scheduler before confirming two finalists over seeds 0/1/2.
+
 ### Frozen 85.8% reproduction
 
 The exact seed-2 run that produced 85.8% dev accuracy is frozen in
